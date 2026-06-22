@@ -19,3 +19,8 @@ FinvizBreadthError: Finviz returned a blocking or verification page.
 2026-06-22 23:18:03,909 INFO Updated finviz_breadth.csv and finviz_breadth.xlsx with columns: ['Date', 'New High', 'New Low', 'Advancing', 'Declining']
 2026-06-22 23:18:03,909 INFO Telegram delivery skipped because secrets are not configured.
 2026-06-22 23:18:03,909 INFO Finviz breadth update completed successfully.
+2026-06-22 23:56:28,318 INFO Starting Finviz breadth update.
+2026-06-22 23:56:28,602 INFO Extracted breadth values: {'New High': 262, 'New Low': 256, 'Advancing': 2368, 'Declining': 3015}
+2026-06-22 23:56:28,609 INFO Updated finviz_breadth.csv and finviz_breadth.xlsx with columns: ['Date', 'New High', 'New Low', 'Advancing', 'Declining']
+2026-06-22 23:56:28,948 INFO Telegram delivery completed successfully.
+2026-06-22 23:56:28,949 INFO Finviz breadth update completed successfully.
