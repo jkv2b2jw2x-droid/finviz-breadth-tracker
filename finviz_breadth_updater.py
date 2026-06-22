@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,7 @@ CSV_PATH = Path("finviz_breadth.csv")
 XLSX_PATH = Path("finviz_breadth.xlsx")
 LOG_PATH = Path("finviz_breadth_log.txt")
 NY_TZ = ZoneInfo("America/New_York")
+TELEGRAM_API_BASE = "https://api.telegram.org"
 
 
 class FinvizBreadthError(RuntimeError):
@@ -163,7 +165,7 @@ def write_xlsx(rows: List[Dict[str, str]]) -> None:
 
 
 def upsert_today_row(values: Dict[str, int]) -> List[Dict[str, str]]:
-    market_date = datetime.now(NY_TZ).date().isoformat()
+    market_date = current_market_date()
     rows = read_existing_rows()
     today_row = {"Date": market_date, **{label: str(values[label]) for label in VALUE_LABELS}}
 
@@ -181,6 +183,49 @@ def upsert_today_row(values: Dict[str, int]) -> List[Dict[str, str]]:
     return rows
 
 
+def current_market_date() -> str:
+    return datetime.now(NY_TZ).date().isoformat()
+
+
+def build_telegram_message(market_date: str, values: Dict[str, int]) -> str:
+    return (
+        f"Finviz Breadth - {market_date}\n\n"
+        f"New High: {values['New High']}\n"
+        f"New Low: {values['New Low']}\n"
+        f"Advancing: {values['Advancing']}\n"
+        f"Declining: {values['Declining']}"
+    )
+
+
+def send_telegram_message(market_date: str, values: Dict[str, int]) -> None:
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    if not bot_token or not chat_id:
+        logging.info("Telegram delivery skipped because secrets are not configured.")
+        return
+
+    message = build_telegram_message(market_date, values)
+    url = f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "disable_web_page_preview": True,
+    }
+
+    try:
+        response = requests.post(url, data=payload, timeout=30)
+    except requests.RequestException:
+        raise FinvizBreadthError("Telegram request failed.") from None
+
+    if not response.ok:
+        raise FinvizBreadthError(
+            f"Telegram delivery failed with HTTP status {response.status_code}."
+        )
+
+    logging.info("Telegram delivery completed successfully.")
+
+
 def main() -> None:
     configure_logging()
     logging.info("Starting Finviz breadth update.")
@@ -195,6 +240,7 @@ def main() -> None:
         write_xlsx(rows)
 
         logging.info("Updated %s and %s with columns: %s", CSV_PATH, XLSX_PATH, OUTPUT_COLUMNS)
+        send_telegram_message(current_market_date(), values)
         logging.info("Finviz breadth update completed successfully.")
     except Exception as exc:
         logging.exception("Finviz breadth update failed clearly: %s", exc)
