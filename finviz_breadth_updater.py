@@ -1,7 +1,7 @@
 ﻿"""Update Finviz market breadth data files.
 
-Fetches the Finviz homepage, extracts the four requested breadth counts, and
-updates CSV/XLSX outputs using one row per New York market date.
+Fetches the Finviz homepage, extracts the four requested breadth counts and
+percentages, and updates CSV/XLSX outputs using one row per New York market date.
 """
 
 from __future__ import annotations
@@ -22,7 +22,18 @@ from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 
 FINVIZ_URL = "https://finviz.com/"
-OUTPUT_COLUMNS = ["Date", "New High", "New Low", "Advancing", "Declining"]
+OUTPUT_COLUMNS = [
+    "Date",
+    "New High",
+    "New High %",
+    "New Low",
+    "New Low %",
+    "Advancing",
+    "Advancing %",
+    "Declining",
+    "Declining %",
+]
+LEGACY_OUTPUT_COLUMNS = ["Date", "New High", "New Low", "Advancing", "Declining"]
 VALUE_LABELS = ["New High", "New Low", "Advancing", "Declining"]
 CSV_PATH = Path("finviz_breadth.csv")
 XLSX_PATH = Path("finviz_breadth.xlsx")
@@ -95,27 +106,50 @@ def normalized_page_text(html: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
-def extract_parenthesized_count(page_text: str, label: str) -> int:
-    pattern = re.compile(
-        rf"\b{re.escape(label)}\b(?P<nearby>.{{0,240}}?)\(\s*(?P<count>[\d,]+)\s*\)",
+def segment_after_label(page_text: str, label: str) -> str:
+    label_match = re.search(rf"\b{re.escape(label)}\b", page_text, re.IGNORECASE)
+    if not label_match:
+        raise FinvizBreadthError(f"Could not find '{label}'. Finviz layout may have changed.")
+
+    segment = page_text[label_match.end() : label_match.end() + 180]
+    stop_markers = VALUE_LABELS + ["Above", "Below", "SMA50", "SMA200"]
+    marker_pattern = re.compile(
+        r"\b(?:" + "|".join(re.escape(marker) for marker in stop_markers if marker != label) + r")\b",
         re.IGNORECASE,
     )
-    match = pattern.search(page_text)
-    if not match:
+    next_marker = marker_pattern.search(segment)
+    if next_marker:
+        segment = segment[: next_marker.start()]
+
+    return segment
+
+
+def extract_breadth_value(page_text: str, label: str) -> Dict[str, str]:
+    segment = segment_after_label(page_text, label)
+    count_match = re.search(r"\(\s*(?P<count>[\d,]+)\s*\)", segment)
+    percent_match = re.search(r"(?P<percent>\d+(?:\.\d+)?)\s*%", segment)
+
+    if not count_match:
         raise FinvizBreadthError(
             f"Could not find parenthesized count for '{label}'. Finviz layout may have changed."
         )
+    if not percent_match:
+        raise FinvizBreadthError(
+            f"Could not find percentage for '{label}'. Finviz layout may have changed."
+        )
 
-    count_text = match.group("count").replace(",", "")
+    count_text = count_match.group("count").replace(",", "")
     try:
-        return int(count_text)
+        count = int(count_text)
     except ValueError as exc:
-        raise FinvizBreadthError(f"Invalid count for '{label}': {match.group('count')}") from exc
+        raise FinvizBreadthError(f"Invalid count for '{label}': {count_match.group('count')}") from exc
+
+    return {"count": str(count), "percent": f"{percent_match.group('percent')}%"}
 
 
-def extract_breadth_values(html: str) -> Dict[str, int]:
+def extract_breadth_values(html: str) -> Dict[str, Dict[str, str]]:
     page_text = normalized_page_text(html)
-    values = {label: extract_parenthesized_count(page_text, label) for label in VALUE_LABELS}
+    values = {label: extract_breadth_value(page_text, label) for label in VALUE_LABELS}
 
     missing = [label for label in VALUE_LABELS if label not in values]
     if missing:
@@ -130,6 +164,14 @@ def read_existing_rows() -> List[Dict[str, str]]:
 
     with CSV_PATH.open("r", newline="", encoding="utf-8") as csv_file:
         reader = csv.DictReader(csv_file)
+        if reader.fieldnames == LEGACY_OUTPUT_COLUMNS:
+            migrated_rows = []
+            for row in reader:
+                migrated_row = {column: "" for column in OUTPUT_COLUMNS}
+                for column in LEGACY_OUTPUT_COLUMNS:
+                    migrated_row[column] = row.get(column, "")
+                migrated_rows.append(migrated_row)
+            return migrated_rows
         if reader.fieldnames != OUTPUT_COLUMNS:
             raise FinvizBreadthError(
                 f"Existing CSV columns are {reader.fieldnames}; expected {OUTPUT_COLUMNS}."
@@ -164,10 +206,13 @@ def write_xlsx(rows: List[Dict[str, str]]) -> None:
     workbook.save(XLSX_PATH)
 
 
-def upsert_today_row(values: Dict[str, int]) -> List[Dict[str, str]]:
+def upsert_today_row(values: Dict[str, Dict[str, str]]) -> List[Dict[str, str]]:
     market_date = current_market_date()
     rows = read_existing_rows()
-    today_row = {"Date": market_date, **{label: str(values[label]) for label in VALUE_LABELS}}
+    today_row = {"Date": market_date}
+    for label in VALUE_LABELS:
+        today_row[label] = values[label]["count"]
+        today_row[f"{label} %"] = values[label]["percent"]
 
     updated = False
     for index, row in enumerate(rows):
@@ -187,17 +232,17 @@ def current_market_date() -> str:
     return datetime.now(NY_TZ).date().isoformat()
 
 
-def build_telegram_message(market_date: str, values: Dict[str, int]) -> str:
+def build_telegram_message(market_date: str, values: Dict[str, Dict[str, str]]) -> str:
     return (
-        f"Finviz Breadth - {market_date}\n\n"
-        f"New High: {values['New High']}\n"
-        f"New Low: {values['New Low']}\n"
-        f"Advancing: {values['Advancing']}\n"
-        f"Declining: {values['Declining']}"
+        f"Finviz Breadth — {market_date}\n\n"
+        f"New High: {values['New High']['count']} ({values['New High']['percent']})\n"
+        f"New Low: {values['New Low']['count']} ({values['New Low']['percent']})\n"
+        f"Advancing: {values['Advancing']['count']} ({values['Advancing']['percent']})\n"
+        f"Declining: {values['Declining']['count']} ({values['Declining']['percent']})"
     )
 
 
-def send_telegram_message(market_date: str, values: Dict[str, int]) -> None:
+def send_telegram_message(market_date: str, values: Dict[str, Dict[str, str]]) -> None:
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
 

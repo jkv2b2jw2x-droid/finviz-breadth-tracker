@@ -4,8 +4,8 @@ GitHub Actions automation for updating Finviz market breadth data.
 
 The updater fetches `https://finviz.com/` and extracts only these values:
 
-| Date | New High | New Low | Advancing | Declining |
-| --- | --- | --- | --- | --- |
+| Date | New High | New High % | New Low | New Low % | Advancing | Advancing % | Declining | Declining % |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 It writes the data to:
 
@@ -37,7 +37,7 @@ It supports manual runs with `workflow_dispatch` and scheduled daily runs at 9:3
 - Run the workflow manually to test: Actions -> Update Finviz Breadth -> Run workflow.
 - After that, the scheduled workflow sends the data to your phone.
 
-The Telegram message contains only the date and these breadth values: New High, New Low, Advancing, and Declining. If the Telegram secrets are missing, local script runs still update the CSV/XLSX files and log that Telegram delivery was skipped.
+The Telegram message contains only the date and these breadth values with their Finviz percentages: New High, New Low, Advancing, and Declining. If the Telegram secrets are missing, local script runs still update the CSV/XLSX files and log that Telegram delivery was skipped.
 
 ## How to use this from another laptop
 
