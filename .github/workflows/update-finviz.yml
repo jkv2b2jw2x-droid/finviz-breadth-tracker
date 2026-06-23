@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # GitHub cron is UTC. These candidate times are guarded below so delivery
-    # happens only at 9:30 AM Asia/Amman time.
+    # happens only during the 9:30-9:59 AM Asia/Amman delivery window.
     - cron: "30 6 * * *"
     - cron: "30 7 * * *"
 
@@ -20,9 +20,10 @@ jobs:
         if: github.event_name == 'schedule'
         shell: bash
         run: |
-          jordan_time="$(TZ=Asia/Amman date +%H:%M)"
-          echo "Jordan time: ${jordan_time}"
-          if [[ "${jordan_time}" != "09:30" ]]; then
+          jordan_hour="$(TZ=Asia/Amman date +%H)"
+          jordan_minute="$(TZ=Asia/Amman date +%M)"
+          echo "Jordan time: ${jordan_hour}:${jordan_minute}"
+          if [[ "${jordan_hour}" != "09" || "${jordan_minute}" < "30" || "${jordan_minute}" > "59" ]]; then
             echo "skip_update=true" >> "${GITHUB_ENV}"
             echo "Skipping non-matching Jordan delivery window."
           fi
