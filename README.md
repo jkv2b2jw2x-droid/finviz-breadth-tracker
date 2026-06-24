@@ -39,6 +39,23 @@ It supports manual runs with `workflow_dispatch` and scheduled daily runs at 9:3
 
 The Telegram message contains only the date and these breadth values with their Finviz percentages: New High, New Low, Advancing, and Declining. If the Telegram secrets are missing, local script runs still update the CSV/XLSX files and log that Telegram delivery was skipped.
 
+## Send updates to multiple people without a server
+
+The current bot sends only to the configured `TELEGRAM_CHAT_ID`.
+
+If `TELEGRAM_CHAT_ID` is your private chat ID, only you receive the message.
+
+To let many people receive the same daily update without running a server, webhook, VPS, Cloudflare Worker, laptop bot, or polling loop:
+
+- Create a Telegram channel or group.
+- Add the bot as an admin.
+- Give the bot permission to post messages.
+- Change the GitHub repository secret `TELEGRAM_CHAT_ID` to the channel username, for example `@finviz_breadth_alerts`, or to the group chat ID.
+- Run the workflow manually to test: Actions -> Update Finviz Breadth -> Run workflow.
+- Share the channel or group invite link with people.
+
+Interactive commands such as `/latest`, `/start`, `/help`, and `/ping` require a webhook, server, or polling system. They are not supported in this no-server setup.
+
 ## How to use this from another laptop
 
 - Go to the GitHub repository.
