@@ -59,3 +59,8 @@ FinvizBreadthError: Finviz returned a blocking or verification page.
 2026-06-28 06:04:38,984 INFO Updated finviz_breadth.csv and finviz_breadth.xlsx with columns: ['Date', 'New High', 'New High %', 'New Low', 'New Low %', 'Advancing', 'Advancing %', 'Declining', 'Declining %']
 2026-06-28 06:04:39,532 INFO Telegram delivery completed successfully.
 2026-06-28 06:04:39,533 INFO Finviz breadth update completed successfully.
+2026-06-30 06:23:05,121 INFO Starting Finviz breadth update.
+2026-06-30 06:23:05,440 INFO Extracted breadth values: {'New High': {'count': '314', 'percent': '67.2%'}, 'New Low': {'count': '153', 'percent': '32.8%'}, 'Advancing': {'count': '2825', 'percent': '50.4%'}, 'Declining': {'count': '2566', 'percent': '45.8%'}}
+2026-06-30 06:23:05,447 INFO Updated finviz_breadth.csv and finviz_breadth.xlsx with columns: ['Date', 'New High', 'New High %', 'New Low', 'New Low %', 'Advancing', 'Advancing %', 'Declining', 'Declining %']
+2026-06-30 06:23:05,943 INFO Telegram delivery completed successfully.
+2026-06-30 06:23:05,945 INFO Finviz breadth update completed successfully.
