@@ -13,7 +13,11 @@ It writes the data to:
 - `finviz_breadth.xlsx`
 - `finviz_breadth_log.txt`
 
-Rows use the New York market date. If a row for the current New York date already exists, the script updates it instead of adding a duplicate.
+Rows use the latest completed NYSE trading-session date. Morning, weekend, and
+NYSE-holiday runs therefore keep the data tied to the session that produced it.
+If a row for that session already exists, the script updates it instead of adding
+a duplicate. If a heavily delayed job starts while the NYSE is open, it exits
+clearly instead of saving live intraday breadth under a completed-session date.
 
 ## Run Locally
 
@@ -26,7 +30,10 @@ python finviz_breadth_updater.py
 
 The workflow is defined at `.github/workflows/update-finviz.yml`.
 
-It supports manual runs with `workflow_dispatch` and scheduled daily runs at 9:30 AM Jordan time. GitHub cron uses UTC, so the workflow uses UTC candidate schedules plus an `Asia/Amman` time check before running. The workflow commits only the generated breadth CSV, XLSX, and log file back to the repository.
+It supports manual runs with `workflow_dispatch` and scheduled weekday runs at
+9:30 AM Jordan time using the `Asia/Amman` timezone. A delayed GitHub runner still
+continues normally instead of skipping the update. The workflow commits only the
+generated breadth CSV, XLSX, and log file back to the repository.
 
 ## Phone delivery with Telegram
 

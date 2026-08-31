@@ -1,7 +1,7 @@
 ﻿"""Update Finviz market breadth data files.
 
 Fetches the Finviz homepage, extracts the four requested breadth counts and
-percentages, and updates CSV/XLSX outputs using one row per New York market date.
+percentages, and updates CSV/XLSX outputs using one row per completed NYSE session.
 """
 
 from __future__ import annotations
@@ -10,12 +10,13 @@ import csv
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Dict, List
 from zoneinfo import ZoneInfo
 
 import requests
+import holidays
 from bs4 import BeautifulSoup
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -39,6 +40,9 @@ CSV_PATH = Path("finviz_breadth.csv")
 XLSX_PATH = Path("finviz_breadth.xlsx")
 LOG_PATH = Path("finviz_breadth_log.txt")
 NY_TZ = ZoneInfo("America/New_York")
+NYSE_HOLIDAYS = holidays.NYSE()
+MARKET_OPEN_TIME = time(9, 30)
+MARKET_CLOSE_TIME = time(16, 0)
 TELEGRAM_API_BASE = "https://api.telegram.org"
 
 
@@ -206,30 +210,57 @@ def write_xlsx(rows: List[Dict[str, str]]) -> None:
     workbook.save(XLSX_PATH)
 
 
-def upsert_today_row(values: Dict[str, Dict[str, str]]) -> List[Dict[str, str]]:
-    market_date = current_market_date()
+def upsert_market_session_row(
+    values: Dict[str, Dict[str, str]], market_date: str
+) -> List[Dict[str, str]]:
     rows = read_existing_rows()
-    today_row = {"Date": market_date}
+    session_row = {"Date": market_date}
     for label in VALUE_LABELS:
-        today_row[label] = values[label]["count"]
-        today_row[f"{label} %"] = values[label]["percent"]
+        session_row[label] = values[label]["count"]
+        session_row[f"{label} %"] = values[label]["percent"]
 
     updated = False
     for index, row in enumerate(rows):
         if row["Date"] == market_date:
-            rows[index] = today_row
+            rows[index] = session_row
             updated = True
             break
 
     if not updated:
-        rows.append(today_row)
+        rows.append(session_row)
 
     rows.sort(key=lambda item: item["Date"])
     return rows
 
 
-def current_market_date() -> str:
-    return datetime.now(NY_TZ).date().isoformat()
+def latest_completed_market_session_date(now: datetime | None = None) -> str:
+    """Return the latest completed NYSE session date at the supplied time.
+
+    Finviz breadth is live while the market is open. Refuse to treat those
+    intraday values as completed-session data if a scheduled run starts late.
+    """
+
+    market_now = now or datetime.now(NY_TZ)
+    if market_now.tzinfo is None:
+        market_now = market_now.replace(tzinfo=NY_TZ)
+    else:
+        market_now = market_now.astimezone(NY_TZ)
+
+    candidate = market_now.date()
+    is_trading_day = candidate.weekday() < 5 and candidate not in NYSE_HOLIDAYS
+    if is_trading_day and MARKET_OPEN_TIME <= market_now.time() < MARKET_CLOSE_TIME:
+        raise FinvizBreadthError(
+            "The NYSE session is in progress; refusing to record live Finviz breadth "
+            "as completed-session data. Re-run after 4:00 PM New York time."
+        )
+
+    if market_now.time() < MARKET_CLOSE_TIME:
+        candidate -= timedelta(days=1)
+
+    while candidate.weekday() >= 5 or candidate in NYSE_HOLIDAYS:
+        candidate -= timedelta(days=1)
+
+    return candidate.isoformat()
 
 
 def build_telegram_message(market_date: str, values: Dict[str, Dict[str, str]]) -> str:
@@ -276,16 +307,19 @@ def main() -> None:
     logging.info("Starting Finviz breadth update.")
 
     try:
+        market_date = latest_completed_market_session_date()
+        logging.info("Using latest completed NYSE session date: %s", market_date)
+
         html = fetch_finviz_homepage()
         values = extract_breadth_values(html)
         logging.info("Extracted breadth values: %s", values)
 
-        rows = upsert_today_row(values)
+        rows = upsert_market_session_row(values, market_date)
         write_csv(rows)
         write_xlsx(rows)
 
         logging.info("Updated %s and %s with columns: %s", CSV_PATH, XLSX_PATH, OUTPUT_COLUMNS)
-        send_telegram_message(current_market_date(), values)
+        send_telegram_message(market_date, values)
         logging.info("Finviz breadth update completed successfully.")
     except Exception as exc:
         logging.exception("Finviz breadth update failed clearly: %s", exc)
