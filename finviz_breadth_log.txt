@@ -230,3 +230,9 @@ FinvizBreadthError: Finviz returned a blocking or verification page.
 2026-10-20 11:58:41,997 INFO Updated finviz_breadth.csv and finviz_breadth.xlsx with columns: ['Date', 'New High', 'New High %', 'New Low', 'New Low %', 'Advancing', 'Advancing %', 'Declining', 'Declining %']
 2026-10-20 11:58:42,551 INFO Telegram delivery completed successfully.
 2026-10-20 11:58:42,552 INFO Finviz breadth update completed successfully.
+2026-10-21 12:13:45,034 INFO Starting Finviz breadth update.
+2026-10-21 12:13:45,035 INFO Using latest completed NYSE session date: 2026-10-20
+2026-10-21 12:13:45,448 INFO Extracted breadth values: {'New High': {'count': '107', 'percent': '58.8%'}, 'New Low': {'count': '75', 'percent': '41.2%'}, 'Advancing': {'count': '2042', 'percent': '36.4%'}, 'Declining': {'count': '1377', 'percent': '24.5%'}}
+2026-10-21 12:13:45,459 INFO Updated finviz_breadth.csv and finviz_breadth.xlsx with columns: ['Date', 'New High', 'New High %', 'New Low', 'New Low %', 'Advancing', 'Advancing %', 'Declining', 'Declining %']
+2026-10-21 12:13:52,534 INFO Telegram delivery completed successfully.
+2026-10-21 12:13:52,535 INFO Finviz breadth update completed successfully.
